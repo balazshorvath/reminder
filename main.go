@@ -27,15 +27,17 @@ var (
 )
 
 func main() {
-	if len(os.Args) < 0 {
+	if len(os.Args) > 1 {
+		num, err := strconv.ParseInt(os.Args[1], 10, 64)
+		if err != nil {
+			panic(err)
+		}
+		interval = time.Duration(num)
+		fmt.Printf("Using interval of %d minutes\n", interval)
+	} else {
 		interval = defaultInterval
 		fmt.Printf("Using default interval of %d minutes\n", interval)
 	}
-	num, err := strconv.ParseInt(os.Args[0], 10, 64)
-	if err != nil {
-		panic(err)
-	}
-	interval = time.Duration(num)
 	playing.Store(0)
 	run()
 }
