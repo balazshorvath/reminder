@@ -8,6 +8,7 @@ import (
 	"os/signal"
 	"strconv"
 	"sync"
+	"sync/atomic"
 	"syscall"
 	"time"
 
@@ -22,6 +23,7 @@ const (
 
 var (
 	interval time.Duration
+	playing  atomic.Value
 )
 
 func main() {
@@ -34,6 +36,7 @@ func main() {
 		panic(err)
 	}
 	interval = time.Duration(num)
+	playing.Store(0)
 	run()
 }
 
@@ -51,23 +54,10 @@ func run() {
 		for {
 			select {
 			case <-tick:
-				go func() {
-					group.Add(1)
-					defer group.Done()
-					for {
-						select {
-						case <-ok:
-							return
-						case <-ctx.Done():
-							return
-						default:
-							play()
-						}
-					}
-				}()
-				var s string
-				_, _ = fmt.Scanln(&s)
-				ok <- nil
+				if playing.Load() == 0 {
+					playing.Store(1)
+					playUntilInput(group, ok, ctx)
+				}
 			case <-quit:
 				cancel()
 				return
@@ -76,6 +66,29 @@ func run() {
 	}()
 	// Wait for all the async tasks to finish.
 	group.Wait()
+}
+
+func playUntilInput(group *sync.WaitGroup, ok chan interface{}, ctx context.Context) {
+	go func() {
+		group.Add(1)
+		defer group.Done()
+		defer playing.Store(0)
+		for {
+			select {
+			case <-ok:
+				return
+			case <-ctx.Done():
+				return
+			default:
+				play()
+			}
+		}
+	}()
+	go func() {
+		var s string
+		_, _ = fmt.Scanln(&s)
+		ok <- nil
+	}()
 }
 
 func play() {
